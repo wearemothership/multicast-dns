@@ -85,7 +85,17 @@ module.exports = function (opts) {
       if (destroyed) return cb()
       if (err) return cb(err)
       var message = packet.encode(value)
-      socket.send(message, 0, message.length, rinfo.port, rinfo.address || rinfo.host, cb)
+	  if (socket.setMulticastInterface) {
+		var interfaces = getInternalInterfaces();
+		interfaces.forEach((int) => {
+		  try {  
+		    socket.setMulticastInterface(int)
+		    socket.send(message, 0, message.length, rinfo.port, rinfo.address || rinfo.host, cb)
+		  } catch (err) {
+		    that.emit('warning', err)
+		  }
+		});
+      }
     }
   }
 
@@ -146,38 +156,26 @@ module.exports = function (opts) {
         that.emit('warning', err)
       }
     }
-
-    if (updated) {
-      if (socket.setMulticastInterface) {
-        try {
-          socket.setMulticastInterface(opts.interface || defaultInterface())
-        } catch (err) {
-          that.emit('warning', err)
-        }
-      }
-      that.emit('networkInterface')
-    }
   }
 
   return that
 }
 
-function defaultInterface () {
+function getInternalInterfaces () {
   var networks = os.networkInterfaces()
   var names = Object.keys(networks)
-
+  var interfaceList = [];
   for (var i = 0; i < names.length; i++) {
     var net = networks[names[i]]
     for (var j = 0; j < net.length; j++) {
       var iface = net[j]
       if (isIPv4(iface.family) && !iface.internal) {
-        if (os.platform() === 'darwin' && names[i] === 'en0') return iface.address
-        return '0.0.0.0'
+        interfaceList.push(iface.address);
       }
     }
   }
 
-  return '127.0.0.1'
+  return interfaceList
 }
 
 function allInterfaces () {
