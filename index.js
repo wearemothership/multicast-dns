@@ -85,16 +85,36 @@ module.exports = function (opts) {
       if (destroyed) return cb()
       if (err) return cb(err)
       var message = packet.encode(value)
-	  if (socket.setMulticastInterface) {
-		var interfaces = getInternalInterfaces();
-		interfaces.forEach((int) => {
-		  try {  
-		    socket.setMulticastInterface(int)
-		    socket.send(message, 0, message.length, rinfo.port, rinfo.address || rinfo.host, cb)
-		  } catch (err) {
-		    that.emit('warning', err)
-		  }
-		});
+      if (socket.setMulticastInterface) {
+        if (opts.interface) {
+          try {  
+            socket.setMulticastInterface(opts.interface)
+          } catch (err) {
+            that.emit('warning', err)
+          }
+          socket.send(message, 0, message.length, rinfo.port, rinfo.address || rinfo.host, cb)
+        }
+        else {
+          var interfaces = getExternalInterfaces();
+          if (interfaces.length > 0) {
+            interfaces.forEach((int) => {
+              try {  
+                socket.setMulticastInterface(int)
+                socket.send(message, 0, message.length, rinfo.port, rinfo.address || rinfo.host, cb)
+              } catch (err) {
+                that.emit('warning', err)
+              }
+            });
+          }
+          else {
+            try {  
+              socket.setMulticastInterface("0.0.0.0")
+            } catch (err) {
+              that.emit('warning', err)
+            }
+            socket.send(message, 0, message.length, rinfo.port, rinfo.address || rinfo.host, cb)
+          }
+        }
       }
     }
   }
@@ -161,7 +181,7 @@ module.exports = function (opts) {
   return that
 }
 
-function getInternalInterfaces () {
+function getExternalInterfaces () {
   var networks = os.networkInterfaces()
   var names = Object.keys(networks)
   var interfaceList = [];
