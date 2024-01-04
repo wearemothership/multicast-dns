@@ -73,6 +73,29 @@ module.exports = function (opts) {
     that.emit('ready')
   })
 
+  that.loopInterface = (interfaces, index, message, rinfo, cb) => {
+    var int = interfaces[index];
+    if (int) {
+      try {
+        socket.setMulticastInterface(int)
+        socket.send(
+          message,
+          0,
+          message.length,
+          rinfo.port,
+          rinfo.address || rinfo.host,
+          () => {
+            setTimeout(() => that.loopInterface(interfaces, index + 1, message, rinfo, cb), 10)
+          })
+      } catch (err) {
+        that.emit('warning', err)
+      }
+    }
+    else {
+      cb()
+    }
+  }
+
   that.send = function (value, rinfo, cb) {
     if (typeof rinfo === 'function') return that.send(value, null, rinfo)
     if (!cb) cb = noop
@@ -97,14 +120,7 @@ module.exports = function (opts) {
         else {
           var interfaces = getExternalInterfaces();
           if (interfaces.length > 0) {
-            interfaces.forEach((int) => {
-              try {  
-                socket.setMulticastInterface(int)
-                socket.send(message, 0, message.length, rinfo.port, rinfo.address || rinfo.host, cb)
-              } catch (err) {
-                that.emit('warning', err)
-              }
-            });
+            that.loopInterface(interfaces, 0, message, rinfo, cb);
           }
           else {
             try {  
